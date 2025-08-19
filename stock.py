@@ -51,23 +51,18 @@ st.markdown("""
 
 @st.cache_resource
 def init_connection():
-    """Inicializar conexión a Neon PostgreSQL"""
     try:
-        # Opción 1: Usar DATABASE_URL
-        conn = psycopg2.connect(DATABASE_URL)
-        
-        # Opción 2: Usar configuración manual
-        # conn = psycopg2.connect(**DATABASE_CONFIG)
-        
-        # Test de conexión
-        cur = conn.cursor()
-        cur.execute("SELECT 1")
-        cur.close()
-        
+        # Opción 1: Connection string directa
+        database_url = st.secrets["DATABASE_URL"]
+        conn = psycopg2.connect(database_url)
         return conn
+        
+    except KeyError:
+        st.error("❌ Falta DATABASE_URL en secrets")
+        return None
     except Exception as e:
-        st.error(f"❌ Error de conexión a Neon: {str(e)}")
-        st.stop()
+        st.error(f"❌ Error de conexión: {e}")
+        return None
 
 
 def execute_query(query, params=None, fetch=True):
