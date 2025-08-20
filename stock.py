@@ -1,5 +1,3 @@
-# stock_neon.py - Versión adaptada para Neon Database con botón de conexión
-
 import streamlit as st
 import psycopg2
 import pandas as pd
