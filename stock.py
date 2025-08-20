@@ -274,7 +274,7 @@ def add_obra(nombre, direccion=None, responsable=None, fecha_inicio=None, fecha_
 
 def render_dashboard():
     """Dashboard principal"""
-    st.markdown('<div class="main-header"><h1>📦 Sistema de Gestión de Stock y Movimientos</h1></div>', unsafe_allow_html=True)
+    st.markdown('<div class="main-header"><h1>📦 Sistema de Stock y Movimientos</h1></div>', unsafe_allow_html=True)
     
     # Cargar datos
     df_stock = pd.DataFrame(load_stock_data())
