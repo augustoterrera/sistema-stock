@@ -1,9 +1,9 @@
-# stock_neon.py - Versión adaptada para Neon Database
+# stock_neon.py - Versión adaptada para Neon Database con botón de conexión
 
 import streamlit as st
 import psycopg2
 import pandas as pd
-from datetime import  date
+from datetime import date
 
 
 # Configuración de página
@@ -46,8 +46,42 @@ st.markdown("""
         font-size: 1.05rem;
         color: #000;
     }
+    .db-status {
+        padding: 0.5rem 1rem;
+        border-radius: 5px;
+        margin-bottom: 1rem;
+        font-weight: bold;
+    }
+    .db-connected {
+        background-color: #d4edda;
+        color: #155724;
+        border: 1px solid #c3e6cb;
+    }
+    .db-disconnected {
+        background-color: #f8d7da;
+        color: #721c24;
+        border: 1px solid #f5c6cb;
+    }
 </style>
 """, unsafe_allow_html=True)
+
+def test_connection():
+    """Probar la conexión a la base de datos"""
+    try:
+        database_url = st.secrets["DATABASE_URL"]
+        conn = psycopg2.connect(database_url)
+        cursor = conn.cursor()
+        cursor.execute("SELECT 1;")
+        cursor.fetchone()
+        cursor.close()
+        conn.close()
+        return True, "Conexión exitosa"
+    except KeyError:
+        return False, "Falta DATABASE_URL en secrets"
+    except psycopg2.OperationalError as e:
+        return False, f"Error de conexión: {str(e)}"
+    except Exception as e:
+        return False, f"Error inesperado: {str(e)}"
 
 @st.cache_resource
 def init_connection():
@@ -64,10 +98,44 @@ def init_connection():
         st.error(f"❌ Error de conexión: {e}")
         return None
 
+def force_reconnect():
+    """Forzar reconexión limpiando el cache"""
+    init_connection.clear()
+    load_stock_data.clear()
+    load_obras_data.clear()
+    load_movimientos_data.clear()
+    st.success("🔄 Cache de conexión limpiado. Intentando reconectar...")
+
+def render_connection_status():
+    """Renderizar estado de conexión y botón de reconexión"""
+    col1, col2, col3 = st.columns([2, 1, 1])
+    
+    with col1:
+        is_connected, message = test_connection()
+        if is_connected:
+            st.markdown(f'<div class="db-status db-connected">🟢 {message}</div>', unsafe_allow_html=True)
+        else:
+            st.markdown(f'<div class="db-status db-disconnected">🔴 {message}</div>', unsafe_allow_html=True)
+    
+    with col2:
+        if st.button("🔄 Reconectar DB"):
+            force_reconnect()
+            st.rerun()
+    
+    with col3:
+        if st.button("🧪 Test Conexión"):
+            is_connected, message = test_connection()
+            if is_connected:
+                st.success(f"✅ {message}")
+            else:
+                st.error(f"❌ {message}")
 
 def execute_query(query, params=None, fetch=True):
     """Ejecutar consultas de forma segura"""
     conn = init_connection()
+    if conn is None:
+        raise Exception("No se pudo establecer conexión con la base de datos")
+    
     cur = conn.cursor()
     
     try:
@@ -159,6 +227,10 @@ def update_item_state(item_id, new_state):
 def register_movement(item_id, obra_origen, obra_destino, responsable, motivo, observaciones=None):
     """Registrar movimiento"""
     conn = init_connection()
+    if conn is None:
+        st.error("❌ No se pudo establecer conexión con la base de datos")
+        return False
+        
     cur = conn.cursor()
     try:
         # Insertar movimiento
@@ -253,6 +325,7 @@ def render_dashboard():
         
 def render_stock_page():
     st.subheader("📋 Inventario Actual")
+    
     df_stock = pd.DataFrame(load_stock_data())
 
     if df_stock.empty:
@@ -325,6 +398,7 @@ def render_add_item():
 
 def render_register_movement():
     st.subheader("🚚 Registrar Movimiento")
+    
     df_stock = pd.DataFrame(load_stock_data())
     df_obras = pd.DataFrame(load_obras_data())
     
@@ -381,9 +455,98 @@ def render_register_movement():
                             st.session_state["selected_item_id"] = None
                             st.rerun()
 
+def render_reports():
+    """Página de reportes"""
+    st.subheader("📈 Reportes y Análisis")
+    
+    df_movimientos = pd.DataFrame(load_movimientos_data())
+    df_stock = pd.DataFrame(load_stock_data())
+    
+    if not df_movimientos.empty:
+        tab1, tab2, tab3 = st.tabs(["📊 Estadísticas", "📋 Historial Completo", "🔍 Filtros Avanzados"])
+        
+        with tab1:
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.write("**Movimientos por día (últimos 30)**")
+                df_movimientos['fecha'] = pd.to_datetime(df_movimientos['fecha_movimiento']).dt.date
+                movements_by_date = df_movimientos['fecha'].value_counts().sort_index().tail(30)
+                st.bar_chart(movements_by_date)
+            
+            with col2:
+                st.write("**Items más movidos**")
+                most_moved = df_movimientos['item_nombre'].value_counts().head(10)
+                st.bar_chart(most_moved)
+        
+        with tab2:
+            st.write("**Historial completo de movimientos**")
+            st.dataframe(
+                df_movimientos[['fecha_movimiento','item_nombre','obra_origen','obra_destino','responsable','motivo']], 
+                use_container_width=True
+            )
+        
+        with tab3:
+            st.write("**Filtros avanzados**")
+            
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                responsable_filter = st.selectbox("Filtrar por responsable", ["Todos"] + df_movimientos['responsable'].unique().tolist())
+            with col2:
+                item_filter = st.selectbox("Filtrar por item", ["Todos"] + df_movimientos['item_nombre'].dropna().unique().tolist())
+            with col3:
+                fecha_desde = st.date_input("Desde fecha")
+            
+            # Aplicar filtros
+            df_filtered = df_movimientos.copy()
+            
+            if responsable_filter != "Todos":
+                df_filtered = df_filtered[df_filtered['responsable'] == responsable_filter]
+            
+            if item_filter != "Todos":
+                df_filtered = df_filtered[df_filtered['item_nombre'] == item_filter]
+            
+            df_filtered = df_filtered[pd.to_datetime(df_filtered['fecha_movimiento']).dt.date >= fecha_desde]
+            
+            st.write(f"**Resultados filtrados ({len(df_filtered)} registros)**")
+            if not df_filtered.empty:
+                st.dataframe(
+                    df_filtered[['fecha_movimiento','item_nombre','obra_origen','obra_destino','responsable','motivo']], 
+                    use_container_width=True
+                )
+            else:
+                st.info("No se encontraron registros con los filtros aplicados")
+    else:
+        st.info("No hay movimientos registrados para generar reportes")
 
 def main():
     st.sidebar.title("🧭 Navegación")
+    
+    # Estado de conexión en sidebar - más compacto
+    st.sidebar.markdown("**🔌 Base de Datos**")
+    
+    is_connected, message = test_connection()
+    if is_connected:
+        st.sidebar.markdown("🟢 **Conectado**")
+    else:
+        st.sidebar.markdown("🔴 **Desconectado**")
+    
+    # Botones de conexión en una fila
+    col1, col2 = st.sidebar.columns(2)
+    with col1:
+        if st.sidebar.button("🔄 Reconectar"):
+            force_reconnect()
+            st.rerun()
+    with col2:
+        if st.sidebar.button("🧪 Test"):
+            is_connected, message = test_connection()
+            if is_connected:
+                st.sidebar.success("✅ OK")
+            else:
+                st.sidebar.error("❌ Error")
+    
+    st.sidebar.markdown("---")
+    
     page = st.sidebar.radio(
         "Ir a:",
         ["📊 Dashboard", "➕ Agregar Item", "🚚 Registrar Movimiento", "📋 Ver Stock", "📈 Reportes"]
@@ -398,12 +561,7 @@ def main():
     elif page == "📋 Ver Stock":
         render_stock_page() 
     elif page == "📈 Reportes":
-        df_movimientos = pd.DataFrame(load_movimientos_data())
-        if not df_movimientos.empty:
-            st.subheader("📈 Historial de Movimientos")
-            st.dataframe(df_movimientos[['fecha_movimiento','item_nombre','obra_origen','obra_destino','responsable','motivo']], use_container_width=True)
-        else:
-            st.info("No hay movimientos registrados")
+        render_reports()
 
 if __name__ == "__main__":
     main()
