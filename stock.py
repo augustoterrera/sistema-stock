@@ -235,7 +235,7 @@ def render_add_item():
             nombre = st.text_input("* Nombre", placeholder="Ej: Taladro")
             tipo = st.selectbox("* Tipo", ["Electrica","A explosion","De mano","Material","Equipo"])
         with c2:
-            estado = st.selectbox("Estado", ["Disponible","En uso","Mantenimiento"])
+            estado = st.selectbox("Estado", ["Disponible","En uso","Mantenimiento", "No funciona"])
             obra_actual = st.selectbox("* Obra actual", obras_list, index=0)
             observaciones = st.text_area("Observaciones")
         submitted = st.form_submit_button("💾 Guardar Herramienta")
