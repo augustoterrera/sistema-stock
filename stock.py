@@ -177,12 +177,13 @@ def render_dashboard():
     st.markdown('<div class="main-header"><h1>📦 Sistema de Herramientas y Movimientos</h1></div>', unsafe_allow_html=True)
     df_stock = pd.DataFrame(load_stock_data()); df_movs = pd.DataFrame(load_movimientos_data())
     if not df_stock.empty:
-        c1, c2, c3, c4, c5 = st.columns(5)
+        c1, c2, c3, c4, c5, c6 = st.columns(6)
         with c1: st.metric("🧰 Total Herramientas", len(df_stock))
         with c2: st.metric("✅ Disponibles", (df_stock['estado'] == 'Disponible').sum())
         with c3: st.metric("🔧 En Uso", (df_stock['estado'] == 'En uso').sum())
         with c4: st.metric("⚠️ Mantenimiento", (df_stock['estado'] == 'Mantenimiento').sum())
-        with c5:
+        with c5: st.metric("❌ No Funciona", (df_stock['estado'] == 'No funciona').sum())
+        with c6:
             today = 0 if df_movs.empty else (pd.to_datetime(df_movs['fecha_movimiento']).dt.date == date.today()).sum()
             st.metric("🚚 Movimientos Hoy", today)
     st.subheader("🚚 Movimientos Recientes")
