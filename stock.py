@@ -407,7 +407,7 @@ def render_add_item():
         with col1:
             marca = st.text_input("* Marca", placeholder="Ej: Bosch")
             nombre = st.text_input("* Nombre", placeholder="Ej: Taladro")
-            tipo = st.selectbox("* Tipo", ["Herramienta", "Maquina", "Material", "Equipo"])
+            tipo = st.selectbox("* Tipo", ["Electrica", "A explosion", "De mano", "Material", "Equipo"])
         with col2:
             estado = st.selectbox("Estado", ["Disponible", "En uso", "Mantenimiento"])
             obra_actual = st.text_input("Obra Actual", placeholder="Ej: Edificio Central")
